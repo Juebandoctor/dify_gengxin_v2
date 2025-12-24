@@ -1,0 +1,78 @@
+# Dify 知识库配置
+dify:
+  base_url: "http://192.168.230.130/"
+  dataset_id: "d9e1fc32-d8cc-407f-b4cc-a20ef2d9a839"
+  api_key: "dataset-k8IsfkkLrJqGENfswoQcDSM4"
+
+# MinerU OCR 配置
+mineru:
+  api_key: "eyJ0eXBlIjoiSldUIiwiYWxnIjoiSFM1MTIifQ.eyJqdGkiOiI1MjEwMDY3OCIsInJvbCI6IlJPTEVfUkVHSVNURVIiLCJpc3MiOiJPcGVuWExhYiIsImlhdCI6MTc2NTk1MzMxNCwiY2xpZW50SWQiOiJsa3pkeDU3bnZ5MjJqa3BxOXgydyIsInBob25lIjoiIiwib3BlbklkIjpudWxsLCJ1dWlkIjoiNDI2OTc2ZmMtMmMwNi00NGYzLTk0ZjMtZmFkNzJhMGJmMGY3IiwiZW1haWwiOiIiLCJleHAiOjE3NjcxNjI5MTR9.Ski-ZDqDbkg9qCfkk_skVrimN1oCLDtlZUT64ohv3ipWNl3bGRU_P9XPbTXMxiFa2xJ89syBhYKuXo3-NRzcMA"
+  base_url: "https://mineru.net"
+  enabled: true  # 启用/禁用 MinerU OCR
+  language: "ch"  # 文档语言：ch(中文), en(英文)
+  enable_table: true  # 启用表格识别
+  enable_formula: true  # 启用公式识别
+  max_ocr_file_size_mb: 600  # 最大 OCR 文件大小限制（MB）
+  max_filename_length: 120  # MinerU 上传时允许的最大文件名长度
+  # OCR 模式配置
+  prefer_mineru_upload: true  # true=优先批量上传（直传）, false=优先URL拉取
+  disable_url_fallback: true  # true=直传失败后不回退URL拉取
+  file_server_url: "https://thora-unconical-cattily.ngrok-free.dev"  # ngrok URL（URL拉取模式需要）
+
+# 文档处理配置
+document:
+  # 支持的扩展名
+  ocr_extensions: [".pdf", ".png", ".jpg", ".jpeg"]
+  output_dir: "ocr_output"
+  watch_folder: "C:\\Users\\lzy\\Desktop\\知识库文件"
+  max_file_size_mb: 600
+  markdown_chunk_size_mb: 20  # OCR Markdown 切分阈值（MB）
+  markdown_min_chunk_size_mb: 2  # 自动降级时允许的最小分段阈值（MB）
+  upload_filename_max_length: 120  # 上传到 Dify 时的文件名最大长度（ASCII）
+  pdf_split_enabled: true  # 对超大 PDF 自动分割
+  pdf_chunk_size_mb: 80  # PDF 分段目标大小（MB）
+  pdf_max_pages_per_chunk: 200  # 每个 PDF 分段允许的最大页数（优先于大小）
+  pdf_split_retry_limit: 3  # MinerU 提示超限时，最多递归拆分的层数
+  # 双栏处理建议：优先开启“按 bbox 自动排序”（不会裁切、可按页自适应单双栏）
+  prefer_layout_json_for_reading_order: true  # 优先使用 MinerU 布局 JSON（bbox）生成阅读顺序
+  pdf_double_column_split_enabled: false  # 双栏 PDF 裁切重排（可能误切文字；一般不推荐开启）
+  pdf_column_split_ratio: 0.5  # 裁切模式列分割比例（仅 pdf_double_column_split_enabled=true 时生效）
+  preserve_original_filename_as_doc_name: true  # Dify 中的“文档名称”使用本地原文件名
+  keep_extension_in_doc_name: true  # 文档名称保留扩展名（如 .pdf/.md）
+  append_chunk_suffix_to_name: false  # 不在文档名追加“分段 x/y”，分段信息写入元数据
+
+# 分段与索引配置
+indexing:
+  technique: "high_quality"  # high_quality 或 economy
+  mode: "custom"
+  separator: "###"
+  max_tokens: 1500
+  # 预处理规则
+  remove_extra_spaces: true
+  remove_urls_emails: false
+
+# 元数据配置
+metadata:
+  enabled: true
+  csv_path: "./metadata/source_table.csv"
+  auto_create: true  # 自动为新文件创建默认元数据
+  # 默认元数据模板
+  default:
+    source: "自然资源部"
+    keywords: "国土空间,生态修复"
+    region: "全国"
+    type: "政策文件"
+
+# 日志数据库配置
+database:
+  enabled: true
+  sqlite_path: "./upload_log.db"
+  # 是否跳过已上传文件
+  skip_uploaded: true
+  # 启动时自动同步 Dify 文档（清理已删除文档的日志）
+  auto_sync: true
+
+# Dify 实时监控配置
+monitor:
+  enabled: true              # 启用 Dify 知识库实时监控
+  check_interval: 10         # 检查间隔（秒），默认 60 秒（1 分钟）

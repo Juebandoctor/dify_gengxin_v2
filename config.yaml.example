@@ -1,0 +1,153 @@
+# Dify 知识库配置文件示例
+# 复制此文件为 config.yaml 并填入你的实际配置
+
+# ==================== Dify 配置 ====================
+dify:
+  base_url: "http://your-dify-host"       # Dify API 地址，如 http://192.168.40.128
+  dataset_id: "your-dataset-id"           # 知识库 ID（在 Dify 控制台获取）
+  api_key: "your-api-key"                 # API 密钥（在 Dify 控制台生成）
+
+# ==================== MinerU OCR 配置 ====================
+mineru:
+  api_key: "your-mineru-api-key"          # MinerU API Key（在 MinerU 官网获取）
+  base_url: "https://mineru.net"          # MinerU 服务地址（通常不需要改）
+  enabled: true                           # 是否启用 OCR 功能
+  language: "ch"                          # 文档语言：ch=中文, en=英文
+  enable_table: true                      # 是否识别表格
+  enable_formula: false                   # 是否识别公式（较慢，根据需求开启）
+  max_ocr_file_size_mb: 200               # OCR 文件大小限制（MB）
+  max_filename_length: 120                # MinerU 上传时允许的最大文件名长度
+  # OCR 模式配置：
+  prefer_mineru_upload: true              # true=优先批量上传（直传），false=优先URL拉取
+  disable_url_fallback: true              # true=直传失败后不回退URL拉取（跨境不稳时推荐开启）
+  file_server_url: ""                     # ngrok URL（仅URL拉取模式需要），如 https://xxx.ngrok-free.app
+
+# ==================== 文档处理配置 ====================
+document:
+  # 需要 OCR 的文件扩展名
+  ocr_extensions:
+    - ".pdf"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".tiff"
+    - ".bmp"
+  
+  # 支持的所有文件扩展名（可选，不配置则使用默认列表）
+  supported_extensions:
+    - ".txt"
+    - ".md"
+    - ".markdown"
+    - ".mdx"
+    - ".html"
+    - ".pdf"
+    - ".doc"
+    - ".docx"
+    - ".xlsx"
+    - ".xls"
+    - ".csv"
+    - ".ppt"
+    - ".pptx"
+    - ".eml"
+    - ".msg"
+    - ".xml"
+    - ".vtt"
+    - ".properties"
+    - ".epub"
+    - ".png"
+    - ".jpg"
+    - ".jpeg"
+    - ".tiff"
+    - ".bmp"
+  
+  output_dir: "ocr_output"                # OCR 输出目录
+  watch_folder: "C:\\Documents"           # 监控文件夹（改为你的实际路径）
+  max_file_size_mb: 600                   # 文件大小限制（MB）
+  markdown_chunk_size_mb: 20              # Markdown/TXT 分段上传阈值（MB）
+  markdown_min_chunk_size_mb: 2           # 自动降级时允许的最小分段大小（MB）
+  upload_filename_max_length: 120         # 上传到 Dify 时允许的文件名长度（ASCII）
+  pdf_split_enabled: true                 # 超大 PDF 自动分割
+  pdf_chunk_size_mb: 80                   # PDF 分段目标大小（MB）
+  pdf_max_pages_per_chunk: 200            # 每个 PDF 分段允许的最大页数
+  pdf_split_retry_limit: 3                # MinerU 超限时的最大递归拆分层数
+  prefer_layout_json_for_reading_order: false # 优先使用 MinerU 布局 JSON（bbox）生成阅读顺序（可按页自适应单双栏，推荐双栏文档开启）
+  pdf_double_column_split_enabled: false  # 双栏 PDF 重排（左栏->右栏），扫描版双栏顺序错乱时开启
+  pdf_column_split_ratio: 0.5             # 列分割比例（0.5=正中；可调 0.45/0.55）
+  preserve_original_filename_as_doc_name: false  # Dify 中的“文档名称”是否使用本地原文件名
+  keep_extension_in_doc_name: true             # 文档名称是否保留扩展名（如 .pdf/.md）
+  append_chunk_suffix_to_name: true            # 分段/拆分时是否在文档名追加“分段 x/y”后缀
+
+# ==================== 分段与索引配置 ====================
+indexing:
+  technique: "high_quality"               # 索引模式：high_quality（高质量）或 economy（经济）
+  mode: "custom"                          # 自定义模式
+  
+  # 分段分隔符选项：
+  # "###" - 按 Markdown 三级标题分段（推荐，适合结构化文档）
+  # "\n\n" - 按自然段落分段（适合纯文本）
+  # "\n" - 按行分段（细粒度，适合短文本）
+  separator: "###"
+  
+  # 每段最大 token 数
+  # 建议值：
+  #   - 政策文件/长文档：1500-2000
+  #   - 技术文档：800-1200
+  #   - 聊天场景/FAQ：400-600
+  max_tokens: 1500
+  chunk_size: 800                        # Dify 索引分段大小 (tokens)，部分版本必填
+  chunk_overlap: 200                     # 相邻分段重叠长度 (tokens)
+  
+  # 预处理规则
+  remove_extra_spaces: true               # 移除多余空格
+  remove_urls_emails: false               # 是否移除 URL 和邮箱（保留=false）
+
+# ==================== 元数据配置 ====================
+metadata:
+  enabled: true                           # 是否启用元数据功能
+  csv_path: "./metadata/source_table.csv" # 元数据 CSV 文件路径
+  auto_create: true                       # 找不到元数据时自动创建
+  
+  # 默认元数据模板（auto_create=true 时使用）
+  default:
+    source: "自然资源部"                   # 默认来源
+    keywords: "国土空间,生态修复"           # 默认关键词
+    region: "全国"                         # 默认地区
+    type: "政策文件"                       # 默认类型
+
+# ==================== 日志数据库配置 ====================
+database:
+  enabled: true                           # 是否启用日志数据库
+  sqlite_path: "./upload_log.db"          # SQLite 数据库文件路径
+  skip_uploaded: true                     # 跳过已上传文件（推荐=true）
+  auto_sync: true                         # 启动时自动与 Dify 同步（清理已删除文档）
+
+# ==================== Dify 实时监控配置 ====================
+monitor:
+  enabled: true                           # 启用 Dify 知识库实时监控
+  check_interval: 60                      # 检查间隔（秒），默认 60 秒
+  # 说明：
+  # - 启用后，程序会定期检查 Dify 知识库的变化
+  # - 自动检测文档删除并同步更新本地元数据表和数据库
+  # - 建议间隔：30-300 秒（过短会增加 API 请求）
+  # - 如果禁用，可使用 sync_metadata.py 手动同步
+
+# ==================== 高级配置（可选）====================
+# 以下配置为高级选项，通常不需要修改
+
+# 性能配置（未来版本支持）
+# performance:
+#   max_workers: 4                        # 最大并发数
+#   chunk_size: 10                        # 批量处理大小
+#   timeout: 300                          # 请求超时（秒）
+
+# 通知配置（未来版本支持）
+# notification:
+#   enabled: false
+#   email: "admin@example.com"
+#   webhook: ""
+
+# 日志配置
+# logging:
+#   level: "INFO"                         # 日志级别：DEBUG, INFO, WARNING, ERROR
+#   file: "./logs/upload.log"             # 日志文件路径
+#   max_size_mb: 10                       # 日志文件大小限制
