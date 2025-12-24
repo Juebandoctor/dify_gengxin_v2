@@ -1,8 +1,16 @@
 # Dify 知识库配置
 dify:
-  base_url: "http://192.168.230.130/"
-  dataset_id: "d9e1fc32-d8cc-407f-b4cc-a20ef2d9a839"
-  api_key: "dataset-k8IsfkkLrJqGENfswoQcDSM4"
+  base_url: "http://192.168.40.128/"
+  dataset_id: "96e6249f-955e-4898-857f-3161be086064"
+  api_key: "dataset-jvlyBUTx1nV5bvaKNFuyiXQe"
+
+# PaddleOCR 配置 (新增)
+paddleocr:
+  enabled: true
+  use_gpu: true          # 强烈建议开启 GPU，否则处理大文件非常慢
+  use_angle_cls: true    # 是否加载方向分类器
+  lang: "ch"             # 语言
+  structure_mode: true   # 启用版面分析 (PP-Structure)
 
 # MinerU OCR 配置
 mineru:
@@ -24,7 +32,7 @@ document:
   # 支持的扩展名
   ocr_extensions: [".pdf", ".png", ".jpg", ".jpeg"]
   output_dir: "ocr_output"
-  watch_folder: "C:\\Users\\lzy\\Desktop\\知识库文件"
+  watch_folder: "C:\\Users\\Moon\\Desktop\\0-政策文件-国土空间生态修复"
   max_file_size_mb: 600
   markdown_chunk_size_mb: 20  # OCR Markdown 切分阈值（MB）
   markdown_min_chunk_size_mb: 2  # 自动降级时允许的最小分段阈值（MB）

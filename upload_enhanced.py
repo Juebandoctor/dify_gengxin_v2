@@ -15,6 +15,16 @@ import copy
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
+try:
+    # 尝试导入 PaddleOCR 相关模块
+    from paddleocr import PPStructure
+    from paddleocr.ppstructure.recovery.recovery_to_doc import sorted_layout_boxes
+    import fitz  # PyMuPDF, 用于将 PDF 转为图片
+    PADDLE_AVAILABLE = True
+except ImportError:
+    PADDLE_AVAILABLE = False
+    print("⚠️ 未检测到 paddleocr 或 pymupdf，本地 OCR 功能不可用。请执行: pip install paddleocr pymupdf")
+
 # 添加 utils 到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -88,9 +98,131 @@ class EnhancedFileHandler(FileSystemEventHandler):
         '.epub',
         '.png', '.jpg', '.jpeg', '.tiff', '.bmp'
     )
+    
+    def process_via_paddleocr(self, file_path):
+        """使用本地 PaddleOCR 处理文件并生成 Markdown"""
+        if not self.ocr_engine:
+            log_error("PaddleOCR 引擎未初始化")
+            return None
+
+        log_info(f"开始本地 OCR 处理 (PaddleOCR): {os.path.basename(file_path)}")
+        
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        output_filename = f"{base_name}_ocr.md"
+        output_path = os.path.join(self.ocr_output_dir, output_filename)
+        
+        # 避免重复处理
+        if os.path.exists(output_path):
+            log_warning(f"OCR 结果已存在，将覆盖: {output_path}")
+
+        try:
+            # 1. 准备图片列表 (PDF 转图片 或 直接读取图片)
+            imgs = []
+            if file_path.lower().endswith('.pdf'):
+                with fitz.open(file_path) as pdf:
+                    for pg in range(len(pdf)):
+                        page = pdf[pg]
+                        # zoom=2 表示放大2倍，提高小字识别率
+                        mat = fitz.Matrix(2, 2)
+                        pm = page.get_pixmap(matrix=mat, alpha=False)
+                        
+                        # 保存临时图片供 Paddle 使用
+                        temp_img = os.path.join(self.ocr_output_dir, f"temp_{base_name}_{pg}.png")
+                        pm.save(temp_img)
+                        imgs.append(temp_img)
+            else:
+                imgs = [file_path]
+
+            full_markdown_content = ""
+
+            # 2. 逐页推理
+            total_pages = len(imgs)
+            for idx, img_path in enumerate(imgs):
+                log_info(f"正在识别第 {idx+1}/{total_pages} 页...")
+                
+                # 调用 PP-Structure
+                result = self.ocr_engine(img_path)
+                
+                # 将结果转换为 Markdown
+                page_md = self._convert_ppstructure_to_markdown(result)
+                full_markdown_content += page_md + "\n\n---\n\n" # 添加分页符
+
+                # 清理 PDF 产生的临时图片
+                if file_path.lower().endswith('.pdf'):
+                    try:
+                        os.remove(img_path)
+                    except:
+                        pass
+
+            # 3. 保存结果文件
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(full_markdown_content)
+            
+            log_success(f"本地 OCR 完成: {output_path}")
+            return output_path
+
+        except Exception as e:
+            log_error(f"PaddleOCR 处理失败: {e}")
+            return None
+
+    def _convert_ppstructure_to_markdown(self, result):
+        """辅助函数：将 PP-Structure 结果转为 Markdown"""
+        # result 是一个 list，每个元素代表一个识别区域
+        # sorted_layout_boxes 帮助我们按人类阅读顺序（从上到下，从左到右）排序
+        h, w, _ = 0, 0, 0 
+        res_sorted = sorted_layout_boxes(result, w)
+        
+        md_lines = []
+        for region in res_sorted:
+            # type: 'text', 'title', 'table', 'figure', 'header', 'footer'
+            region_type = region.get('type', '').lower()
+            res_content = region.get('res', {})
+            
+            if region_type == 'table':
+                # 表格：PP-Structure 会生成 HTML
+                if 'html' in res_content:
+                    md_lines.append(res_content['html'])
+            elif region_type == 'figure':
+                md_lines.append("> [图片区域]")
+            elif region_type in ['header', 'footer']:
+                # 可选择忽略页眉页脚
+                pass
+            else:
+                # 文本或标题
+                # res_content 可能是 list (多行文本)
+                if isinstance(res_content, list):
+                    text_block = ''.join([line.get('text', '') for line in res_content])
+                else:
+                    text_block = str(res_content)
+                
+                if region_type == 'title':
+                    md_lines.append(f"## {text_block}")
+                else:
+                    md_lines.append(text_block)
+        
+        return "\n\n".join(md_lines)
 
     def __init__(self, config, metadata_mgr, upload_logger):
         super().__init__()
+        # --- 新增 PaddleOCR 初始化逻辑 ---
+        self.paddle_config = config.get('paddleocr', {})
+        self.paddle_enabled = self.paddle_config.get('enabled', False) and PADDLE_AVAILABLE
+        self.ocr_engine = None
+
+        if self.paddle_enabled:
+            log_info("正在加载 PaddleOCR (PP-Structure) 模型...")
+            try:
+                self.ocr_engine = PPStructure(
+                    show_log=False,
+                    use_gpu=self.paddle_config.get('use_gpu', False),
+                    lang=self.paddle_config.get('lang', 'ch'),
+                    use_angle_cls=self.paddle_config.get('use_angle_cls', True)
+                )
+                log_success("PaddleOCR 模型加载完成")
+            except Exception as e:
+                log_error(f"PaddleOCR 初始化失败: {e}")
+                self.paddle_enabled = False
+        # -------------------------------
         self.config = config
         self.metadata_mgr = metadata_mgr
         self.upload_logger = upload_logger
@@ -143,11 +275,11 @@ class EnhancedFileHandler(FileSystemEventHandler):
         self.document_create_url = f"{self.dify_base_url}/v1/datasets/{self.dataset_id}/document/create-by-file"
 
         # MinerU 配置
-        self.mineru_config = config['mineru']
-        self.mineru_enabled = self.mineru_config.get('enabled', True)
-        self.mineru_api_key = self.mineru_config.get('api_key')
-        self.mineru_base = self.mineru_config.get('base_url', 'https://mineru.net')
-        self.mineru_max_filename_length = int(self.mineru_config.get('max_filename_length', 120))
+        # self.mineru_config = config['mineru']
+        # self.mineru_enabled = self.mineru_config.get('enabled', True)
+        # self.mineru_api_key = self.mineru_config.get('api_key')
+        # self.mineru_base = self.mineru_config.get('base_url', 'https://mineru.net')
+        # self.mineru_max_filename_length = int(self.mineru_config.get('max_filename_length', 120))
 
         # 索引配置
         self.indexing_config = config['indexing']
@@ -377,8 +509,8 @@ class EnhancedFileHandler(FileSystemEventHandler):
 
         display_name = self._resolve_document_name(file_path, metadata)
 
-        if not self.mineru_enabled:
-            log_warning("MinerU OCR 已禁用，直接上传原文件")
+        if not getattr(self, 'paddle_enabled', False):
+            log_warning("PaddleOCR 未启用或加载失败，直接上传原文件")
             self._handle_regular_file(file_path, metadata, display_name)
             return
         is_pdf = file_path.lower().endswith('.pdf')
@@ -543,24 +675,54 @@ class EnhancedFileHandler(FileSystemEventHandler):
             self._cleanup_internal_chunk_file(file_path)
 
         return success_all
-
+    
     def _process_single_ocr_input(self, file_path, metadata, display_name=None, split_depth=0):
+        """
+        单一 OCR 处理入口（仅使用 PaddleOCR）
+        """
         if not display_name:
             display_name = self._resolve_document_name(file_path, metadata)
 
-        ocr_result = self.upload_file_via_mineru(file_path)
-        if ocr_result:
-            if self._handle_markdown_file(ocr_result, metadata, display_name=display_name):
-                return True
+        # 1. 检查 PaddleOCR 是否可用
+        if not getattr(self, 'paddle_enabled', False) or not self.ocr_engine:
+            log_error(f"PaddleOCR 未启用或初始化失败，无法处理: {os.path.basename(file_path)}")
+            self._record_upload_failure(file_path, 'ocr_engine_disabled', metadata)
+            return False
 
-        if self._is_mineru_page_limit_error() and file_path.lower().endswith('.pdf'):
-            log_warning("MinerU 返回页数超限，尝试进一步拆分 PDF 并重试")
-            if self._retry_pdf_with_further_split(file_path, metadata, display_name, split_depth):
-                return True
+        # 2. 执行本地 OCR
+        ocr_result_path = self.process_via_paddleocr(file_path)
 
-        log_error("OCR 解析失败，无法继续上传")
+        # 3. 处理结果 (如果成功生成了 Markdown)
+        if ocr_result_path:
+            # 上传生成的 Markdown 文件
+            if self._handle_markdown_file(ocr_result_path, metadata, display_name=display_name):
+                return True
+            else:
+                # 上传步骤失败
+                return False
+        
+        # 4. OCR 过程失败
+        log_error(f"OCR 识别失败: {os.path.basename(file_path)}")
         self._record_upload_failure(file_path, 'ocr_failed', metadata)
         return False
+
+    # def _process_single_ocr_input(self, file_path, metadata, display_name=None, split_depth=0):
+    #     if not display_name:
+    #         display_name = self._resolve_document_name(file_path, metadata)
+
+    #     ocr_result = self.upload_file_via_mineru(file_path)
+    #     if ocr_result:
+    #         if self._handle_markdown_file(ocr_result, metadata, display_name=display_name):
+    #             return True
+
+    #     if self._is_mineru_page_limit_error() and file_path.lower().endswith('.pdf'):
+    #         log_warning("MinerU 返回页数超限，尝试进一步拆分 PDF 并重试")
+    #         if self._retry_pdf_with_further_split(file_path, metadata, display_name, split_depth):
+    #             return True
+
+    #     log_error("OCR 解析失败，无法继续上传")
+    #     self._record_upload_failure(file_path, 'ocr_failed', metadata)
+    #     return False
 
     def _handle_regular_file(self, file_path, metadata, display_name=None):
         doc_id, error_code = self.upload_to_dify(file_path, metadata=metadata, display_name=display_name)
@@ -1320,7 +1482,7 @@ class EnhancedFileHandler(FileSystemEventHandler):
                 }
                 doc_language = metadata_payload.get('language') or metadata_payload.get('lang')
             if not doc_language:
-                doc_language = self.mineru_config.get('language') or 'ch'
+                doc_language = 'ch'  # 默认中文，或者从 self.paddle_config.get('lang', 'ch') 获取
 
             primary_payload = {
                 "name": document_name,
