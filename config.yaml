@@ -51,11 +51,15 @@ document:
 
 # 分段与索引配置
 indexing:
-  technique: "high_quality"  # high_quality 或 economy
-  mode: "custom"
-  separator: "###"
-  max_tokens: 1500
-  # 预处理规则
+  technique: "high_quality"  # 高质量索引
+  mode: "custom"             # 自定义规则
+  separator: "\n\n"          # 分隔符
+  max_tokens: 1000           # 每个分段的最大长度 (根据模型上下文窗口调整)
+  
+  # === 关键修改点 ===
+  chunk_overlap: 100         # 设置重叠词数 (建议 50-200 之间)
+  # =================
+  
   remove_extra_spaces: true
   remove_urls_emails: false
 
